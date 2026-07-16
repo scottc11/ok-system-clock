@@ -1,0 +1,38 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/firmware/**",
+                "${workspaceFolder}/ok-STM32F4/CMSIS/Device/ST/STM32F4xx/Include/**",
+                "${workspaceFolder}/ok-STM32F4/CMSIS/Device/ST/STM32F4xx/Source/**",
+                "${workspaceFolder}/ok-STM32F4/HAL/Inc/*",
+                "${workspaceFolder}/ok-STM32F4/HAL/Src/*",
+                "${workspaceFolder}/ok-STM32F4/drivers/**",
+                "${workspaceFolder}/ok-STM32F4/RTOS/Inc/*",
+                "${workspaceFolder}/ok-STM32F4/RTOS/Src/*",
+                "${workspaceFolder}/ok-STM32F4/cxxsupport/*",
+                "${workspaceFolder}/ok-STM32F4/middleware/**",
+                "${workspaceFolder}/ok-STM32F4/STM32F4xx_HAL_Driver/**",
+                "${workspaceFolder}/ok-STM32F4/STM32F4xx_HAL_Driver/Inc/**",
+                "${workspaceFolder}/ok-STM32F4/STM32F4xx_HAL_Driver/Src/**",
+                "${workspaceFolder}/ok-STM32F4/System/*",
+                "${workspaceFolder}/ok-STM32F4/System/Inc/*",
+                "${workspaceFolder}/ok-STM32F4/System/Src/*"
+            ],
+            "defines": [
+                "USE_HAL_DRIVER",
+                "STM32F446xx"
+            ],
+            "macFrameworkPath": [
+                "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
+            ],
+            "compilerPath": "/opt/homebrew/bin/arm-none-eabi-gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "macos-gcc-arm",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}

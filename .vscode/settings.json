@@ -1,0 +1,32 @@
+{
+    "files.associations": {
+        "*.json.liquid": "json",
+        "*.yaml.liquid": "yaml",
+        "*.md.liquid": "markdown",
+        "*.js.liquid": "liquid-javascript",
+        "*.css.liquid": "liquid-css",
+        "*.scss.liquid": "liquid-scss",
+        "istream": "cpp",
+        "memory": "cpp",
+        "algorithm": "cpp",
+        "bitset": "cpp",
+        "optional": "cpp",
+        "*.tcc": "cpp",
+        "random": "cpp",
+        "cmath": "cpp",
+        "array": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "utility": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "disabled",
+    "cortex-debug.variableUseNaturalFormat": true,
+    "cortex-debug.gdbPath": "/opt/homebrew/opt/arm-none-eabi-gcc/bin/arm-none-eabi-gdb",
+    "cortex-debug.openocdPath": "/opt/homebrew/bin/openocd",
+    "search.exclude": {
+        "test/**": true,
+        "ok-STM32F4/CMSIS/DSP/DSP_Lib_TestSuite/**": true
+    }
+}
