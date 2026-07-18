@@ -12,8 +12,8 @@
 #define TRIG_OUT_1 PC_15
 #define TRIG_OUT_2 PC_14
 
-#define LED_START_STOP PB_0
-#define LED_RESET PB_4
+#define LED_START_STOP PB_4
+#define LED_RESET PB_0
 
 #define BTN_START_STOP PB_1
 #define BTN_RESET PB_7
@@ -21,3 +21,7 @@
 #define EXT_CLOCK_IN PA_2
 #define EXT_START_STOP_IN PA_1
 #define EXT_RESET_IN PA_3
+
+#define ROTARY_ENCODER_A PA_6
+#define ROTARY_ENCODER_B PA_7
+#define ROTARY_ENCODER_BUTTON PA_8

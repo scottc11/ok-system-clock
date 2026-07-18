@@ -10,10 +10,14 @@
 #include "InterruptIn.h"
 #include "IS31FL3246.h"
 #include "Metronome.h"
+#include "RotaryEncoder.h"
+#include "HardwareTimer.h"
 
 TaskHandle_t th_main;
 QueueHandle_t queue_main;
 IWDG_HandleTypeDef hiwdg;
+
+HardwareTimer timer8(TIM10);
 
 I2C i2c(I2C1_SDA, I2C1_SCL, I2C::Instance::I2C_1, I2C::Mode::NonBlocking);
 
@@ -25,12 +29,60 @@ DigitalOut trigOut2(TRIG_OUT_2);
 DigitalOut ledStartStop(LED_START_STOP);
 DigitalOut ledReset(LED_RESET);
 
-IS31FL3246 leds(&i2c, IS31FL3246_ADDR_GND);
+DigitalIn resetButton(BTN_RESET);
+DigitalIn startStopButton(BTN_START_STOP);
+
+IS31FL3246 leds(&i2c, IS31FL3246_ADDR_VCC);
 Display display(&i2c, DISPLAY_SHUTDOWN);
 
-// TIM4 overflow determines the BPM (overflow event ticks a pulse, 24 pulses per quarter note)
-// TIM2 handles external clock input via input capture
-// TIM2 divides capture event by 24 and sets TIM4 overflow to the result
+Metronome metronome(EXT_CLOCK_IN, TIM_CHANNEL_3);
+
+RotaryEncoder encoder(ROTARY_ENCODER_A, ROTARY_ENCODER_B, ROTARY_ENCODER_BUTTON);
+bool encoderPressed = false;
+
+// Executed in interrupt context
+void ppqnCallback(uint8_t pulse)
+{
+    UNUSED(pulse);
+    
+    if (pulse == 0)
+    {
+        // ledReset.write(1);
+    } else {
+        // ledReset.write(0);
+    }
+
+    dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
+}
+
+void stepCallback(uint16_t step)
+{
+    // ledStartStop.toggle();
+}
+
+// occurs in interrupt context
+void encoderRotateCallback(uint8_t direction)
+{
+    dispatch_event_isr(Event::ENCODER_ROTATE);
+}
+
+// occurs in interrupt context
+void encoderPressCallback()
+{
+    encoderPressed = true;
+    dispatch_event_isr(Event::ENCODER_PRESS);
+}
+
+void encoderReleaseCallback()
+{
+    encoderPressed = false;
+    dispatch_event_isr(Event::ENCODER_RELEASE);
+}
+
+void timerOverflowCallback()
+{
+    dispatch_event_isr(Event::UPDATE_DISPLAY);
+}
 
 void taskMain(void *pvParameters)
 {
@@ -41,24 +93,70 @@ void taskMain(void *pvParameters)
     i2c.init();
     leds.init();
     display.init();
+    metronome.init();
+    
+    timer8.init(8, 1000);
+    timer8.attachOverflowCallback(callback(timerOverflowCallback));
+    timer8.setOverflowFrequency(30);
+    timer8.start();
+
+    display.drawString("OK200");
+    display.update();
 
     STATUS_LED.write(1);
 
+    encoder.attachRotateCallback(encoderRotateCallback);
+    encoder.attachPressCallback(encoderPressCallback);
+
+    metronome.attachPPQNCallback(ppqnCallback);
+    metronome.attachStepCallback(stepCallback);
+    metronome.start();
+
     while (1)
     {
-        HAL_Delay(100);
+        xQueueReceive(queue_main, &event_id, portMAX_DELAY);
         HAL_IWDG_Refresh(&hiwdg);
-        display.drawString("HELLO!");
-        display.update();
 
-        // xQueueReceive(queue_main, &event_id, portMAX_DELAY);
-        // HAL_IWDG_Refresh(&hiwdg);
+        switch (event_id)
+        {
+        case Event::UPDATE_DISPLAY:
+            display.update();
+            if (resetButton.read() == 0) {
+                if (encoderPressed) {
 
-        // switch (event_id)
-        // {
-        // default:
-        //     break;
-        // }
+                }
+            }
+            if (startStopButton.read() == 0) {
+                
+            }
+            break;
+
+        case Event::METRONOME_PULSE:
+            if (metronome.pulse == 0) {
+                leds.setChannelPWM(14, 10);
+            } else {
+                leds.setChannelPWM(14, 0);
+            }
+            break;
+
+        case Event::ENCODER_ROTATE:
+            if (encoder.direction == 1) {
+                metronome.setBPM(metronome.getBPM() + 1);
+            } else {
+                metronome.setBPM(metronome.getBPM() - 1);
+            }
+            display.drawFloat(metronome.getBPM());
+            break;
+
+        case Event::ENCODER_PRESS:
+            break;
+
+        case Event::ENCODER_RELEASE:
+            break;
+
+        default:
+            break;
+        }
     }
 }
 
@@ -99,15 +197,13 @@ int main(void)
 
 void OK_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
+    Metronome::RouteOverflowCallback(htim);
     HardwareTimer::RoutePeriodElapsedCallback(htim);
 }
 
 void OK_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM2)
-    {
-        
-    }
+    Metronome::RouteCaptureCallback(htim);
 }
 
 extern "C" void OK_I2C_MANAGER_WHILE_LOOP_START(TickType_t *last_wake_time)
