@@ -30,13 +30,8 @@ static MenuItem makeBackItem()
 }
 
 const char *const clockSourceLabels[] = {"CLOCK", "FREE"};
-const char *const rangeLabels[] = {"SLOW", "MEDIUM", "FAST"};
-const char *const divisorLabels[] = {"1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"};
+const char *const divisorLabels[] = {"1/4", "1/8", "1/16"};
 const char *const metronomeSourceLabels[] = {"MIDI", "INT.", "EXT."};
-const char *const trackLabels[] = {"VCO1", "VCO2", "VCO1&2"};
-const char *const trackScaleLabels[] = {"IONIAN", "DORIAN", "PHRYG", "LYDIAN", "MIXOLYD", "AEOLIAN", "LOCRIAN"};
-const char *const trackRangeLabels[] = {"1 OCT", "2 OCT", "3 OCT", "4 OCT"};
-
 
 MenuItem inputsOptions[] = {
     makeBackItem(),
@@ -54,9 +49,62 @@ MenuItem outputsOptions[] = {
     {M_OUTPUT_MIDI, "MIDI", nullptr, 0, 0, false, false, 0, 100, 1, nullptr, 0},
 };
 
+MenuItem metronomeOptions[] = {
+    makeBackItem(),
+    {M_METRONOME_BPM, "BPM", nullptr, 0, 120, false, false, 40, 240, 1, nullptr, 0},
+    {M_METRONOME_SOURCE, "SOURCE", nullptr, 0, 0, false, false, 0, static_cast<uint16_t>(compileTimeLength(metronomeSourceLabels) - 1), 1, metronomeSourceLabels, compileTimeLength(metronomeSourceLabels)},
+};
+
 MenuItem mainOptions[] = {
+    {M_METRONOME, "CLOCK", metronomeOptions, compileTimeLength(metronomeOptions), 0, true, false, 0, 100, 1, nullptr, 0},
     {M_INPUTS, "INPUTS", inputsOptions, compileTimeLength(inputsOptions), 0, true, false, 0, 100, 1, nullptr, 0},
     {M_OUTPUTS, "OUTPUTS", outputsOptions, compileTimeLength(outputsOptions), 0, true, false, 0, 100, 1, nullptr, 0},
 };
 
 MenuItem menu_root = {M_ROOT, "Main", mainOptions, compileTimeLength(mainOptions), 0, true, false, 0, 100, 1, nullptr, 0};
+
+void menuHandler(uint8_t direction)
+{
+    const int8_t delta = direction ? 1 : -1;
+    MenuItem *activeMenuItem = menu.getActiveMenuItem();
+    if (activeMenuItem == nullptr)
+    {
+        return;
+    }
+
+    const bool valueChanged = menu.handleRotation(delta);
+    if (valueChanged)
+    {
+        MenuItem *changedItem = menu.getActiveMenuItem();
+        if (changedItem != nullptr)
+        {
+            applyMenuSideEffects(*changedItem);
+        }
+    }
+
+    if (activeMenuItem->id == M_METRONOME_BPM) {
+        display.drawFloat(metronome.getBPM());
+    } else {
+        display.drawString(menu.getActiveItemText());
+    }
+    return;
+}
+
+/**
+ * @brief Every time the encoder is rotated, this function is called to apply the side effects of the menu item.
+ * 
+ * @param item The menu item that was changed.
+ */
+void applyMenuSideEffects(MenuItem &item)
+{
+    switch (item.id)
+    {
+        case M_INPUT_IN:
+            break;
+        case M_METRONOME_BPM:
+            metronome.setBPM(item.value);
+            break;
+        case M_METRONOME_SOURCE:
+            break;
+    }
+}

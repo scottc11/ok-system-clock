@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "Callback.h"
 
 static constexpr uint8_t MENU_STACK_MAX_DEPTH = 16;
 static constexpr size_t MENU_TEXT_BUFFER_SIZE = 20;
@@ -37,6 +38,11 @@ public:
     void setRoot(MenuItem *rootNode);
     void enter();
     bool jumpToMenuItem(uint16_t id);
+
+    // Fired by jumpToMenuItem() whenever the requested item is found. The
+    // located MenuItem is passed to the callback.
+    Callback<void(MenuItem *item)> jumpCallback;
+    void attachJumpCallback(Callback<void(MenuItem *item)> callback);
 
     MenuItem *getActiveMenuItem();
     const MenuItem *getActiveMenuItem() const;

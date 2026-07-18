@@ -15,8 +15,8 @@
 #define LED_START_STOP PB_4
 #define LED_RESET PB_0
 
-#define BTN_START_STOP PB_1
-#define BTN_RESET PB_7
+#define BTN_START_STOP PB_7
+#define BTN_RESET PB_1
 
 #define EXT_CLOCK_IN PA_2
 #define EXT_START_STOP_IN PA_1

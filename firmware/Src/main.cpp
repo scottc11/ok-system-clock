@@ -12,6 +12,8 @@
 #include "Metronome.h"
 #include "RotaryEncoder.h"
 #include "HardwareTimer.h"
+#include "Menu.h"
+#include "menu_items.h"
 
 TaskHandle_t th_main;
 QueueHandle_t queue_main;
@@ -29,27 +31,99 @@ DigitalOut trigOut2(TRIG_OUT_2);
 DigitalOut ledStartStop(LED_START_STOP);
 DigitalOut ledReset(LED_RESET);
 
-DigitalIn resetButton(BTN_RESET);
-DigitalIn startStopButton(BTN_START_STOP);
+DigitalIn resetButton(BTN_RESET, PinMode::PullUp);
+DigitalIn startStopButton(BTN_START_STOP, PinMode::PullUp);
 
 IS31FL3246 leds(&i2c, IS31FL3246_ADDR_VCC);
 Display display(&i2c, DISPLAY_SHUTDOWN);
 
 Metronome metronome(EXT_CLOCK_IN, TIM_CHANNEL_3);
 
+Menu menu(&menu_root);
+
 RotaryEncoder encoder(ROTARY_ENCODER_A, ROTARY_ENCODER_B, ROTARY_ENCODER_BUTTON);
 bool encoderPressed = false;
+bool setupMode = false;
 
-// Executed in interrupt context
-void ppqnCallback(uint8_t pulse)
+// Bit for each polled button. A set bit means the button is pressed (active LOW).
+enum ButtonMask : uint8_t {
+    BTN_MASK_RESET      = 1 << 0,
+    BTN_MASK_START_STOP = 1 << 1,
+};
+
+// Last known pressed-state of all buttons, used for edge detection so that
+// press/release handlers only run once per transition (not every poll).
+uint8_t buttonState = 0;
+
+// Reads the current pressed-state of all buttons into a single mask.
+static uint8_t readButtons()
 {
-    UNUSED(pulse);
-    
+    uint8_t mask = 0;
+    if (resetButton.read() == LOW)     mask |= BTN_MASK_RESET;
+    if (startStopButton.read() == LOW) mask |= BTN_MASK_START_STOP;
+    return mask;
+}
+
+// Polls the buttons and dispatches actions only on state changes.
+static void handleButtons()
+{
+    uint8_t current  = readButtons();
+    uint8_t changed  = current ^ buttonState;
+    uint8_t pressed  = changed & current;      // bits that went 0 -> 1 (just pressed)
+    uint8_t released = changed & buttonState;  // bits that went 1 -> 0 (just released)
+
+    // Reset button press
+    if (pressed & BTN_MASK_RESET) {
+        if (encoderPressed) {
+            setupMode = !setupMode;
+            if (setupMode) {
+                menu.jumpToMenuItem(M_ROOT);
+                display.drawString(menu.getActiveItemText());
+            } else {
+                menu.jumpToMenuItem(M_METRONOME_BPM);
+                display.drawString(menu.getActiveItemText());
+            }
+        }
+    }
+
+    // Reset button release
+    if (released & BTN_MASK_RESET) {
+    }
+
+    // Start/stop button press
+    if (pressed & BTN_MASK_START_STOP) {
+        if (setupMode) {
+            menu.handleSelect();
+        } else {
+            if (metronome.running) {
+                metronome.stop();
+                ledStartStop.write(HIGH);
+            } else {
+                metronome.start();
+                ledStartStop.write(LOW);
+            }
+        }
+    }
+
+    // Start/stop button release
+    if (released & BTN_MASK_START_STOP) {
+    }
+
+    buttonState = current;
+}
+
+/**
+ * @brief Callback for the metronome PQN pulse.
+ * @note Executed in interrupt context, put all timing critical gpio operations here.
+ * @param pulse 
+ */
+void ppqnCallback(uint8_t pulse)
+{   
     if (pulse == 0)
     {
-        // ledReset.write(1);
+        trigOut1.write(HIGH);
     } else {
-        // ledReset.write(0);
+        trigOut1.write(LOW);
     }
 
     dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
@@ -77,6 +151,11 @@ void encoderReleaseCallback()
 {
     encoderPressed = false;
     dispatch_event_isr(Event::ENCODER_RELEASE);
+}
+
+void menuJumpCallback(MenuItem *item)
+{
+    display.drawString(item->text);
 }
 
 void timerOverflowCallback()
@@ -107,10 +186,14 @@ void taskMain(void *pvParameters)
 
     encoder.attachRotateCallback(encoderRotateCallback);
     encoder.attachPressCallback(encoderPressCallback);
+    encoder.attachReleaseCallback(encoderReleaseCallback);
 
     metronome.attachPPQNCallback(ppqnCallback);
     metronome.attachStepCallback(stepCallback);
     metronome.start();
+
+    menu.jumpToMenuItem(M_METRONOME_BPM);
+    display.drawFloat(metronome.getBPM());
 
     while (1)
     {
@@ -121,14 +204,7 @@ void taskMain(void *pvParameters)
         {
         case Event::UPDATE_DISPLAY:
             display.update();
-            if (resetButton.read() == 0) {
-                if (encoderPressed) {
-
-                }
-            }
-            if (startStopButton.read() == 0) {
-                
-            }
+            handleButtons();
             break;
 
         case Event::METRONOME_PULSE:
@@ -140,12 +216,7 @@ void taskMain(void *pvParameters)
             break;
 
         case Event::ENCODER_ROTATE:
-            if (encoder.direction == 1) {
-                metronome.setBPM(metronome.getBPM() + 1);
-            } else {
-                metronome.setBPM(metronome.getBPM() - 1);
-            }
-            display.drawFloat(metronome.getBPM());
+            menuHandler(encoder.direction);
             break;
 
         case Event::ENCODER_PRESS:
