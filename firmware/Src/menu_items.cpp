@@ -29,9 +29,8 @@ static MenuItem makeBackItem()
     return {M_BACK, "< Back", nullptr, 0, 0, false, true, 0, 100, 1, nullptr, 0};
 }
 
-const char *const clockSourceLabels[] = {"CLOCK", "FREE"};
 const char *const divisorLabels[] = {"1/4", "1/8", "1/16"};
-const char *const metronomeSourceLabels[] = {"MIDI", "INT.", "EXT."};
+const char *const metronomeSourceLabels[] = {"MIDI", "INT.", "EXT.", "LINK"};
 
 MenuItem inputsOptions[] = {
     makeBackItem(),
@@ -42,23 +41,16 @@ MenuItem inputsOptions[] = {
 };
 
 MenuItem outputsOptions[] = {
+    {M_OUTPUT_1, "OUT 1", nullptr, 0, 0, false, false, 0, compileTimeLength(divisorLabels) - 1, 1, divisorLabels, compileTimeLength(divisorLabels)},
+    {M_OUTPUT_2, "OUT 2", nullptr, 0, 0, false, false, 0, compileTimeLength(divisorLabels) - 1, 1, divisorLabels, compileTimeLength(divisorLabels)},
+    {M_OUTPUT_3, "OUT 3", nullptr, 0, 0, false, false, 0, compileTimeLength(divisorLabels) - 1, 1, divisorLabels, compileTimeLength(divisorLabels)},
     makeBackItem(),
-    {M_OUTPUT_1, "OUTPUT 1", nullptr, 0, 0, false, false, 0, 100, 1, nullptr, 0},
-    {M_OUTPUT_2, "OUTPUT 2", nullptr, 0, 0, false, false, 0, 100, 1, nullptr, 0},
-    {M_OUTPUT_3, "OUTPUT 3", nullptr, 0, 0, false, false, 0, 100, 1, nullptr, 0},
-    {M_OUTPUT_MIDI, "MIDI", nullptr, 0, 0, false, false, 0, 100, 1, nullptr, 0},
-};
-
-MenuItem metronomeOptions[] = {
-    makeBackItem(),
-    {M_METRONOME_BPM, "BPM", nullptr, 0, 120, false, false, 40, 240, 1, nullptr, 0},
-    {M_METRONOME_SOURCE, "SOURCE", nullptr, 0, 0, false, false, 0, static_cast<uint16_t>(compileTimeLength(metronomeSourceLabels) - 1), 1, metronomeSourceLabels, compileTimeLength(metronomeSourceLabels)},
 };
 
 MenuItem mainOptions[] = {
-    {M_METRONOME, "CLOCK", metronomeOptions, compileTimeLength(metronomeOptions), 0, true, false, 0, 100, 1, nullptr, 0},
-    {M_INPUTS, "INPUTS", inputsOptions, compileTimeLength(inputsOptions), 0, true, false, 0, 100, 1, nullptr, 0},
-    {M_OUTPUTS, "OUTPUTS", outputsOptions, compileTimeLength(outputsOptions), 0, true, false, 0, 100, 1, nullptr, 0},
+    {M_METRONOME_SOURCE, "SOURCE", nullptr, 0, 0, false, false, 0, static_cast<uint16_t>(compileTimeLength(metronomeSourceLabels) - 1), 1, metronomeSourceLabels, compileTimeLength(metronomeSourceLabels)},
+    {M_INPUTS, "INS:", inputsOptions, compileTimeLength(inputsOptions), 0, true, false, 0, 100, 1, nullptr, 0},
+    {M_OUTPUTS, "OUTS:", outputsOptions, compileTimeLength(outputsOptions), 0, true, false, 0, 100, 1, nullptr, 0},
 };
 
 MenuItem menu_root = {M_ROOT, "Main", mainOptions, compileTimeLength(mainOptions), 0, true, false, 0, 100, 1, nullptr, 0};
@@ -82,11 +74,7 @@ void menuHandler(uint8_t direction)
         }
     }
 
-    if (activeMenuItem->id == M_METRONOME_BPM) {
-        display.drawFloat(metronome.getBPM());
-    } else {
-        display.drawString(menu.getActiveItemText());
-    }
+    display.drawString(menu.getActiveItemText());
     return;
 }
 
@@ -101,10 +89,13 @@ void applyMenuSideEffects(MenuItem &item)
     {
         case M_INPUT_IN:
             break;
-        case M_METRONOME_BPM:
-            metronome.setBPM(item.value);
-            break;
         case M_METRONOME_SOURCE:
+            break;
+        case M_OUTPUT_1:
+            break;
+        case M_OUTPUT_2:
+            break;
+        case M_OUTPUT_3:
             break;
     }
 }

@@ -9,7 +9,6 @@ enum MenuID : uint16_t
     M_ROOT, // 0x00 (root menu must be 0x00)
     M_BACK,
     M_METRONOME,
-    M_METRONOME_BPM,
     M_METRONOME_SOURCE,
     M_INPUTS,
     M_INPUT_IN,

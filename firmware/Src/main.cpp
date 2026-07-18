@@ -74,14 +74,20 @@ static void handleButtons()
 
     // Reset button press
     if (pressed & BTN_MASK_RESET) {
+        if (setupMode)
+        {
+            // exit setup mode
+            setupMode = false;
+            display.drawFloat(metronome.getBPM());
+        }
+        
         if (encoderPressed) {
             setupMode = !setupMode;
             if (setupMode) {
                 menu.jumpToMenuItem(M_ROOT);
                 display.drawString(menu.getActiveItemText());
             } else {
-                menu.jumpToMenuItem(M_METRONOME_BPM);
-                display.drawString(menu.getActiveItemText());
+                display.drawFloat(metronome.getBPM());
             }
         }
     }
@@ -94,6 +100,7 @@ static void handleButtons()
     if (pressed & BTN_MASK_START_STOP) {
         if (setupMode) {
             menu.handleSelect();
+            display.drawString(menu.getActiveItemText());
         } else {
             if (metronome.running) {
                 metronome.stop();
@@ -192,7 +199,6 @@ void taskMain(void *pvParameters)
     metronome.attachStepCallback(stepCallback);
     metronome.start();
 
-    menu.jumpToMenuItem(M_METRONOME_BPM);
     display.drawFloat(metronome.getBPM());
 
     while (1)
@@ -216,10 +222,23 @@ void taskMain(void *pvParameters)
             break;
 
         case Event::ENCODER_ROTATE:
-            menuHandler(encoder.direction);
+            if (setupMode) {
+                menuHandler(encoder.direction);
+            } else {
+                if (encoder.direction == 1) {
+                    metronome.setBPM(metronome.getBPM() + 1);
+                } else {
+                    metronome.setBPM(metronome.getBPM() - 1);
+                }
+                display.drawFloat(metronome.getBPM());
+            }
             break;
 
         case Event::ENCODER_PRESS:
+            if (setupMode) {
+                menu.handleSelect();
+                display.drawString(menu.getActiveItemText());
+            }
             break;
 
         case Event::ENCODER_RELEASE:
