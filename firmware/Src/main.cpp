@@ -220,10 +220,11 @@ void taskMain(void *pvParameters)
             if (setupMode) {
                 menuHandler(encoder.direction);
             } else {
+                float increment = encoderPressed ? 0.1 : 1;
                 if (encoder.direction == 1) {
-                    metronome.setBPM(metronome.getBPM() + 1);
+                    metronome.setBPM(metronome.getBPM() + increment);
                 } else {
-                    metronome.setBPM(metronome.getBPM() - 1);
+                    metronome.setBPM(metronome.getBPM() - increment);
                 }
                 display.drawFloat(metronome.getBPM());
             }
