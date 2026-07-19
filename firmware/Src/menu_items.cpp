@@ -30,6 +30,19 @@ static MenuItem makeBackItem()
 }
 
 const char *const divisorLabels[] = {"1/4", "1/8", "1/16"};
+
+// Maps a divisorLabels index onto the matching ClockOutput division.
+static uint8_t divisorForIndex(uint16_t index)
+{
+    switch (index)
+    {
+        case 0:  return ClockOutput::QUARTER;   // "1/4"
+        case 1:  return ClockOutput::EIGHTH;    // "1/8"
+        case 2:  return ClockOutput::SIXTEENTH; // "1/16"
+        default: return ClockOutput::QUARTER;
+    }
+}
+
 const char *const metronomeSourceLabels[] = {"MIDI", "INT.", "EXT.", "LINK"};
 
 MenuItem inputsOptions[] = {
@@ -92,8 +105,10 @@ void applyMenuSideEffects(MenuItem &item)
         case M_METRONOME_SOURCE:
             break;
         case M_OUTPUT_1:
+            output1.setDivisor(divisorForIndex(item.value));
             break;
         case M_OUTPUT_2:
+            output2.setDivisor(divisorForIndex(item.value));
             break;
         case M_OUTPUT_3:
             break;

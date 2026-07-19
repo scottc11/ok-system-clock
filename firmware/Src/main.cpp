@@ -14,6 +14,7 @@
 #include "HardwareTimer.h"
 #include "Menu.h"
 #include "menu_items.h"
+#include "ClockOutput.h"
 
 TaskHandle_t th_main;
 QueueHandle_t queue_main;
@@ -25,8 +26,9 @@ I2C i2c(I2C1_SDA, I2C1_SCL, I2C::Instance::I2C_1, I2C::Mode::NonBlocking);
 
 DigitalOut STATUS_LED(PD_2);
 DigitalOut displayShutdown(DISPLAY_SHUTDOWN);
-DigitalOut trigOut1(TRIG_OUT_1);
-DigitalOut trigOut2(TRIG_OUT_2);
+
+ClockOutput output1(TRIG_OUT_1);
+ClockOutput output2(TRIG_OUT_2);
 
 DigitalOut ledStartStop(LED_START_STOP);
 DigitalOut ledReset(LED_RESET);
@@ -80,7 +82,7 @@ static void handleButtons()
             setupMode = false;
             display.drawFloat(metronome.getBPM());
         }
-        
+
         if (encoderPressed) {
             setupMode = !setupMode;
             if (setupMode) {
@@ -126,12 +128,8 @@ static void handleButtons()
  */
 void ppqnCallback(uint8_t pulse)
 {   
-    if (pulse == 0)
-    {
-        trigOut1.write(HIGH);
-    } else {
-        trigOut1.write(LOW);
-    }
+    output1.update(pulse);
+    output2.update(pulse);
 
     dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
 }
@@ -214,11 +212,8 @@ void taskMain(void *pvParameters)
             break;
 
         case Event::METRONOME_PULSE:
-            if (metronome.pulse == 0) {
-                leds.setChannelPWM(14, 10);
-            } else {
-                leds.setChannelPWM(14, 0);
-            }
+            leds.setChannelPWM(14, output1.isTriggered(metronome.pulse) ? 10 : 0);
+            leds.setChannelPWM(16, output2.isTriggered(metronome.pulse) ? 10 : 0);
             break;
 
         case Event::ENCODER_ROTATE:
