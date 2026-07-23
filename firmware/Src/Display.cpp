@@ -21,8 +21,8 @@ void Display::init()
 
     driver.reset();
     driver.setConfigRegister(false, IS31FL3730::DisplayMode::MatrixOneAndTwo, false, IS31FL3730::MatrixMode::_5x11);
-    driver.setLightingEffectRegister(0x00, 0x00);
-    driver.setPWMRegister(5); // highter pwm values cause a high pitch noise
+    driver.setLightingEffectRegister(0x8, 0x00);
+    driver.setPWMRegister(10);
 }
 
 void Display::setPWM(uint8_t pwm)
