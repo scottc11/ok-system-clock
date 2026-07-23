@@ -15,6 +15,8 @@
 #include "Menu.h"
 #include "menu_items.h"
 #include "ClockOutput.h"
+#include "MIDI.h"
+#include "uart.h"
 
 TaskHandle_t th_main;
 QueueHandle_t queue_main;
@@ -40,6 +42,8 @@ IS31FL3246 leds(&i2c, IS31FL3246_ADDR_VCC);
 Display display(&i2c, DISPLAY_SHUTDOWN);
 
 Metronome metronome(EXT_CLOCK_IN, TIM_CHANNEL_3);
+
+MIDI midi(&huart1);
 
 Menu menu(&menu_root);
 
@@ -86,6 +90,7 @@ static void handleButtons()
         if (encoderPressed) {
             setupMode = !setupMode;
             if (setupMode) {
+                syncMenuValuesRecursive(menu_root);
                 menu.jumpToMenuItem(M_ROOT);
                 display.drawString(menu.getActiveItemText());
             } else {
@@ -168,6 +173,13 @@ void timerOverflowCallback()
     dispatch_event_isr(Event::UPDATE_DISPLAY);
 }
 
+void MIDIClockTickCallback()
+{
+    if (metronome.mode == Metronome::Mode::MIDI) {
+        metronome.tick();
+    }
+}
+
 void taskMain(void *pvParameters)
 {
     // Task variables
@@ -179,6 +191,9 @@ void taskMain(void *pvParameters)
     display.init();
     metronome.init();
     
+    uart_init();
+    midi.attachClockTickCallback(callback(MIDIClockTickCallback));
+
     timer8.init(8, 1000);
     timer8.attachOverflowCallback(callback(timerOverflowCallback));
     timer8.setOverflowFrequency(30);
@@ -195,6 +210,7 @@ void taskMain(void *pvParameters)
 
     metronome.attachPPQNCallback(ppqnCallback);
     metronome.attachStepCallback(stepCallback);
+    metronome.setMode(Metronome::Mode::MIDI);
     metronome.start();
 
     display.drawFloat(metronome.getBPM());
@@ -239,6 +255,14 @@ void taskMain(void *pvParameters)
 
         case Event::ENCODER_RELEASE:
             break;
+
+        case Event::MIDI_RECEIVED:
+        {
+            // Copy the 3-byte MIDI message out of the shared buffer and let the MIDI parser fan it out to callbacks
+            uint8_t msg[3] = {MIDI::BUFFER_IN[0], MIDI::BUFFER_IN[1], MIDI::BUFFER_IN[2]};
+            midi.parseMessage(msg);
+            break;
+        }
 
         default:
             break;

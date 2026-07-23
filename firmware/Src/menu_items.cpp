@@ -43,7 +43,7 @@ static uint8_t divisorForIndex(uint16_t index)
     }
 }
 
-const char *const metronomeSourceLabels[] = {"MIDI", "INT.", "EXT.", "LINK"};
+const char *const metronomeSourceLabels[] = {"EXT.", "INT.", "MIDI", "LINK"};
 
 MenuItem inputsOptions[] = {
     makeBackItem(),
@@ -103,6 +103,7 @@ void applyMenuSideEffects(MenuItem &item)
         case M_INPUT_IN:
             break;
         case M_METRONOME_SOURCE:
+            metronome.setMode(static_cast<Metronome::Mode>(item.value));
             break;
         case M_OUTPUT_1:
             output1.setDivisor(divisorForIndex(item.value));
@@ -112,5 +113,38 @@ void applyMenuSideEffects(MenuItem &item)
             break;
         case M_OUTPUT_3:
             break;
+    }
+}
+
+/**
+ * @brief Sync all menu item values with runtime values
+ *
+ * @param menuNode root menu node
+ */
+void syncMenuValuesRecursive(MenuItem &menuNode)
+{
+    if (menuNode.optionCount == 0 || menuNode.options == nullptr)
+    {
+        return;
+    }
+
+    for (uint8_t i = 0; i < menuNode.optionCount; ++i)
+    {
+        MenuItem &item = menuNode.options[i];
+
+        if (item.hasSubmenus)
+        {
+            syncMenuValuesRecursive(item);
+            continue;
+        }
+
+        switch (item.id)
+        {
+        case M_METRONOME_SOURCE:
+            item.value = static_cast<uint16_t>(metronome.mode);
+            break;
+        default:
+            break;
+        }
     }
 }

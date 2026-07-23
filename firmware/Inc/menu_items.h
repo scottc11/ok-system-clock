@@ -26,3 +26,4 @@ extern MenuItem menu_root;
 
 void menuHandler(uint8_t direction);
 void applyMenuSideEffects(MenuItem &item);
+void syncMenuValuesRecursive(MenuItem &menuNode);
