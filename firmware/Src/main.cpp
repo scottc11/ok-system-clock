@@ -139,9 +139,33 @@ void ppqnCallback(uint8_t pulse)
     dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
 }
 
+float calculateBPM() {
+    static uint32_t last_call_time = 0;
+    static float last_bpm = 0.0f;
+
+    uint32_t current_time = HAL_GetTick(); // Get current time in ms
+    if (last_call_time != 0)
+    {
+        uint32_t delta = current_time - last_call_time;
+        // If nonzero and reasonable timing, compute BPM
+        if (delta > 0)
+        {
+            // stepCallback is called once per step.
+            // Convert ms per step to BPM:
+            // BPM = 60000 ms / delta
+            last_bpm = 60000.0f / (float)delta;
+            // Optionally, do something with last_bpm, e.g., display.updateBPM(last_bpm);
+            // For demonstration, you might display it:
+            // display.drawFloat(last_bpm);
+        }
+    }
+    last_call_time = current_time;
+    return last_bpm;
+}
+
 void stepCallback(uint16_t step)
 {
-    // ledStartStop.toggle();
+    dispatch_event_isr(Event::METRONOME_STEP);
 }
 
 // occurs in interrupt context
@@ -161,11 +185,6 @@ void encoderReleaseCallback()
 {
     encoderPressed = false;
     dispatch_event_isr(Event::ENCODER_RELEASE);
-}
-
-void menuJumpCallback(MenuItem *item)
-{
-    display.drawString(item->text);
 }
 
 void timerOverflowCallback()
@@ -210,11 +229,11 @@ void taskMain(void *pvParameters)
 
     metronome.attachPPQNCallback(ppqnCallback);
     metronome.attachStepCallback(stepCallback);
-    metronome.setMode(Metronome::Mode::MIDI);
+    metronome.setMode(Metronome::Mode::INTERNAL);
     metronome.start();
 
     display.drawFloat(metronome.getBPM());
-
+    float bpm = 0.0f;
     while (1)
     {
         xQueueReceive(queue_main, &event_id, portMAX_DELAY);
@@ -232,17 +251,32 @@ void taskMain(void *pvParameters)
             leds.setChannelPWM(16, output2.isTriggered(metronome.pulse) ? 10 : 0);
             break;
 
+        case Event::METRONOME_STEP:
+            bpm = calculateBPM();
+            if (metronome.mode == Metronome::Mode::EXTERNAL || metronome.mode == Metronome::Mode::MIDI) {
+                metronome.setBPM(bpm);
+                if (!setupMode) {
+                    display.drawFloat(bpm);
+                }
+            }
+            break;
+
         case Event::ENCODER_ROTATE:
             if (setupMode) {
                 menuHandler(encoder.direction);
             } else {
-                float increment = encoderPressed ? 0.1 : 1;
-                if (encoder.direction == 1) {
-                    metronome.setBPM(metronome.getBPM() + increment);
-                } else {
-                    metronome.setBPM(metronome.getBPM() - increment);
+                if (metronome.mode == Metronome::Mode::INTERNAL) {
+                    float increment = encoderPressed ? 0.1 : 1;
+                    if (encoder.direction == 1)
+                    {
+                        metronome.setBPM(metronome.getBPM() + increment);
+                    }
+                    else
+                    {
+                        metronome.setBPM(metronome.getBPM() - increment);
+                    }
+                    display.drawFloat(metronome.getBPM());
                 }
-                display.drawFloat(metronome.getBPM());
             }
             break;
 
@@ -284,10 +318,7 @@ int main(void)
         OK_ERROR_HANDLER(HAL_ERROR, "Watchdog initialization failed");
     }
 
-    HAL_Delay(5);
-    // ADC sample rate should be at least 2x the speed of the multiplexer switching rate
-    AnalogIn::initialize(20000); // 20Khz ADC sample rate (@ 100KHz, there is a bug causing the gpio expander interrupt BUTTONS_INT to fail... not sure why)
-    HAL_Delay(5);
+    // AnalogIn::initialize(20000);
     InterruptIn::initialize();
     DigitalOut::initialize();
     HAL_Delay(90);
