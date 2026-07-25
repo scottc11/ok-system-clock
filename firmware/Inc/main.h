@@ -26,5 +26,10 @@
 #define ROTARY_ENCODER_B PA_7
 #define ROTARY_ENCODER_BUTTON PA_8
 
+#define TRANSPORT_PPQN_1 PC_12
+#define TRANSPORT_PPQN_24 PC_11
+#define TRANSPORT_RESET PA_15       // why?
+#define TRANSPORT_START_STOP PC_10
+
 #define CAN_RX PB_5
 #define CAN_TX PB_6

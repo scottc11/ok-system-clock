@@ -32,6 +32,11 @@ CAN can_bus(CAN2, CAN_RX, CAN_TX);
 DigitalOut STATUS_LED(PD_2);
 DigitalOut displayShutdown(DISPLAY_SHUTDOWN);
 
+DigitalOut transport_ppqn1(TRANSPORT_PPQN_1);
+DigitalOut transport_ppqn24(TRANSPORT_PPQN_24);
+DigitalOut transport_reset(TRANSPORT_RESET);
+DigitalOut transport_startStop(TRANSPORT_START_STOP, 1); // default to "running"
+
 ClockOutput output1(TRIG_OUT_1);
 ClockOutput output2(TRIG_OUT_2);
 
@@ -53,6 +58,7 @@ Menu menu(&menu_root);
 RotaryEncoder encoder(ROTARY_ENCODER_A, ROTARY_ENCODER_B, ROTARY_ENCODER_BUTTON);
 bool encoderPressed = false;
 bool setupMode = false;
+bool queueReset = false;
 
 // Bit for each polled button. A set bit means the button is pressed (active LOW).
 enum ButtonMask : uint8_t {
@@ -83,6 +89,7 @@ static void handleButtons()
 
     // Reset button press
     if (pressed & BTN_MASK_RESET) {
+        queueReset = true;
         if (setupMode)
         {
             // exit setup mode
@@ -114,10 +121,12 @@ static void handleButtons()
         } else {
             if (metronome.running) {
                 metronome.stop();
+                transport_startStop.write(0);
                 midi.sendClockStop();
                 ledStartStop.write(HIGH);
             } else {
                 metronome.start();
+                transport_startStop.write(1);
                 midi.sendClockStart();
                 ledStartStop.write(LOW);
             }
@@ -131,21 +140,8 @@ static void handleButtons()
     buttonState = current;
 }
 
-/**
- * @brief Callback for the metronome PQN pulse.
- * @note Executed in interrupt context, put all timing critical gpio operations here.
- * @param pulse 
- */
-void ppqnCallback(uint8_t pulse)
-{   
-    output1.update(pulse);
-    output2.update(pulse);
-    midi.sendClockTick();
-
-    dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
-}
-
-float calculateBPM() {
+float calculateBPM()
+{
     static uint32_t last_call_time = 0;
     static float last_bpm = 0.0f;
 
@@ -169,8 +165,36 @@ float calculateBPM() {
     return last_bpm;
 }
 
+/**
+ * @brief Callback for the metronome PQN pulse.
+ * @note Executed in interrupt context, put all timing critical gpio operations here.
+ * @param pulse 
+ */
+void ppqnCallback(uint8_t pulse)
+{   
+    output1.update(pulse);
+    output2.update(pulse);
+    transport_ppqn24.write(1);
+    
+    if (pulse == 1) {
+        transport_ppqn1.write(0);
+    }
+
+    midi.sendClockTick();
+
+    if (queueReset) {
+        transport_reset.write(1);
+        queueReset = false;
+    } else {
+        transport_reset.write(0);
+    }
+
+    dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
+}
+
 void stepCallback(uint16_t step)
 {
+    transport_ppqn1.write(1);
     dispatch_event_isr(Event::METRONOME_STEP);
 }
 
@@ -358,6 +382,13 @@ void OK_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void OK_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
     Metronome::RouteCaptureCallback(htim);
+}
+
+extern "C" void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM4) {
+        transport_ppqn24.write(0);
+    }
 }
 
 extern "C" void OK_I2C_MANAGER_WHILE_LOOP_START(TickType_t *last_wake_time)
