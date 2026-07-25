@@ -16,6 +16,7 @@
 #include "menu_items.h"
 #include "ClockOutput.h"
 #include "MIDI.h"
+#include "CAN.h"
 #include "uart.h"
 
 TaskHandle_t th_main;
@@ -25,6 +26,8 @@ IWDG_HandleTypeDef hiwdg;
 HardwareTimer timer8(TIM10);
 
 I2C i2c(I2C1_SDA, I2C1_SCL, I2C::Instance::I2C_1, I2C::Mode::NonBlocking);
+
+CAN can_bus(CAN2, CAN_RX, CAN_TX);
 
 DigitalOut STATUS_LED(PD_2);
 DigitalOut displayShutdown(DISPLAY_SHUTDOWN);
@@ -212,6 +215,8 @@ void taskMain(void *pvParameters)
     leds.init();
     display.init();
     metronome.init();
+
+    can_bus.init();
     
     uart_init();
     midi.attachClockTickCallback(callback(MIDIClockTickCallback));
@@ -237,6 +242,8 @@ void taskMain(void *pvParameters)
 
     display.drawFloat(metronome.getBPM());
     float bpm = 0.0f;
+    uint16_t can_data = 100;
+    HAL_StatusTypeDef can_status;
     while (1)
     {
         xQueueReceive(queue_main, &event_id, portMAX_DELAY);
@@ -247,6 +254,7 @@ void taskMain(void *pvParameters)
         case Event::UPDATE_DISPLAY:
             display.update();
             handleButtons();
+            can_status = can_bus.transmit(OK_CAN_ID_SYSTEM_CLOCK, (uint8_t *)&can_data, 2, false);
             break;
 
         case Event::METRONOME_PULSE:
@@ -272,10 +280,12 @@ void taskMain(void *pvParameters)
                     float increment = encoderPressed ? 0.1 : 1;
                     if (encoder.direction == 1)
                     {
+                        can_data += 10;
                         metronome.setBPM(metronome.getBPM() + increment);
                     }
                     else
                     {
+                        can_data -= 10;
                         metronome.setBPM(metronome.getBPM() - increment);
                     }
                     display.drawFloat(metronome.getBPM());
@@ -316,10 +326,10 @@ int main(void)
     hiwdg.Instance = IWDG;
     hiwdg.Init.Prescaler = IWDG_PRESCALER_64;
     hiwdg.Init.Reload = 500; // 1 second timeout
-    if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
-    {
-        OK_ERROR_HANDLER(HAL_ERROR, "Watchdog initialization failed");
-    }
+    // if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+    // {
+    //     OK_ERROR_HANDLER(HAL_ERROR, "Watchdog initialization failed");
+    // }
 
     // AnalogIn::initialize(20000);
     InterruptIn::initialize();
@@ -362,7 +372,7 @@ HAL_StatusTypeDef OK_ERROR_HANDLER(HAL_StatusTypeDef error, const char *msg)
     switch (error)
     {
     case HAL_ERROR:
-        // STATUS_LED.write(1);
+        ledReset.write(1);
         break;
     default:
         break;

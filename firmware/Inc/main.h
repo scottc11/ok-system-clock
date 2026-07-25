@@ -25,3 +25,6 @@
 #define ROTARY_ENCODER_A PA_6
 #define ROTARY_ENCODER_B PA_7
 #define ROTARY_ENCODER_BUTTON PA_8
+
+#define CAN_RX PB_5
+#define CAN_TX PB_6
