@@ -111,9 +111,11 @@ static void handleButtons()
         } else {
             if (metronome.running) {
                 metronome.stop();
+                midi.sendClockStop();
                 ledStartStop.write(HIGH);
             } else {
                 metronome.start();
+                midi.sendClockStart();
                 ledStartStop.write(LOW);
             }
         }
@@ -135,6 +137,7 @@ void ppqnCallback(uint8_t pulse)
 {   
     output1.update(pulse);
     output2.update(pulse);
+    midi.sendClockTick();
 
     dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
 }

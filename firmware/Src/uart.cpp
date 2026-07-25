@@ -15,7 +15,7 @@ void uart_init()
     PA10     ------> USART1_RX
     */
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = GPIO_PIN_10;
+    GPIO_InitStruct.Pin = GPIO_PIN_9 | GPIO_PIN_10;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -75,6 +75,19 @@ extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         {
             OK_ERROR_HANDLER(status, "HAL_UART_Receive_IT");
         }
+    }
+}
+
+/**
+ * @brief UART transmit complete callback.
+ * 
+ * @param huart
+ */
+extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART1)
+    {
+        // optional: kick next queued message
     }
 }
 
