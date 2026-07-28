@@ -267,7 +267,6 @@ void taskMain(void *pvParameters)
     display.drawFloat(metronome.getBPM());
     float bpm = 0.0f;
     uint16_t can_data = 100;
-    HAL_StatusTypeDef can_status;
     while (1)
     {
         xQueueReceive(queue_main, &event_id, portMAX_DELAY);
@@ -278,7 +277,7 @@ void taskMain(void *pvParameters)
         case Event::UPDATE_DISPLAY:
             display.update();
             handleButtons();
-            can_status = can_bus.transmit(OK_CAN_ID_SYSTEM_CLOCK, (uint8_t *)&can_data, 2, false);
+            can_manager_send(OK_CAN_ID_SYSTEM_CLOCK, (uint8_t *)&can_data, 2, false);
             break;
 
         case Event::METRONOME_PULSE:
@@ -365,6 +364,8 @@ int main(void)
     xTaskCreate(taskMain, "taskMain", 512, NULL, 1, &th_main);
 
     xTaskCreate(task_I2C_manager, "I2C manager", 256, NULL, 3, &th_i2c_manager);
+
+    xTaskCreate(task_CAN_manager, "CAN manager", 256, &can_bus, 4, &th_can_manager);
 
     vTaskStartScheduler();
 

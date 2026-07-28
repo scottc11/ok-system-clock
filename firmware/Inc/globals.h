@@ -2,6 +2,7 @@
 
 #include "main.h"
 #include "task_I2C_manager.h"
+#include "task_CAN_manager.h"
 #include "Display.h"
 #include "Menu.h"
 #include "Metronome.h"
