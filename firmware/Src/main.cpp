@@ -20,6 +20,7 @@
 #include "uart.h"
 
 TaskHandle_t th_main;
+TaskHandle_t th_can_rx;
 QueueHandle_t queue_main;
 IWDG_HandleTypeDef hiwdg;
 
@@ -229,6 +230,11 @@ void MIDIClockTickCallback()
     }
 }
 
+/**
+ * @brief The main task that handles all clock related timing events and user interaction.
+ * 
+ * @param pvParameters 
+ */
 void taskMain(void *pvParameters)
 {
     // Task variables
@@ -340,6 +346,28 @@ void taskMain(void *pvParameters)
     }
 }
 
+/**
+ * @brief A dedicated task to receive a message from the CAN bus and handle it accordingly.
+ * @note Runs independently of the clock task.
+ * @param pv 
+ */
+void task_can_rx(void *pv)
+{
+    // Create the CAN queues before the scheduler starts so consumer tasks (task_can_rx)
+    // block on a valid queue instead of spinning on a null one.
+    can_manager_init();
+
+    CANMessage msg;
+    for (;;)
+    {
+        if (can_manager_receive(&msg, portMAX_DELAY) == pdPASS)
+        {
+            // React to the frame here. Runs independently of the clock task.
+            // e.g. forward to USB, update the metronome, etc.
+        }
+    }
+}
+
 int main(void)
 {
     HAL_Init();
@@ -361,11 +389,13 @@ int main(void)
 
     ok_random_seed(HAL_GetTick());
 
-    xTaskCreate(taskMain, "taskMain", 512, NULL, 1, &th_main);
+    xTaskCreate(taskMain, "taskMain", 512, NULL, configMAX_PRIORITIES - 1, &th_main);
 
     xTaskCreate(task_I2C_manager, "I2C manager", 256, NULL, 3, &th_i2c_manager);
 
     xTaskCreate(task_CAN_manager, "CAN manager", 256, &can_bus, 4, &th_can_manager);
+
+    xTaskCreate(task_can_rx, "CAN RX", 256, NULL, 5, NULL);
 
     vTaskStartScheduler();
 
