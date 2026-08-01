@@ -19,7 +19,8 @@
         "initializer_list": "cpp",
         "ranges": "cpp",
         "span": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "limits": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "cortex-debug.variableUseNaturalFormat": true,
