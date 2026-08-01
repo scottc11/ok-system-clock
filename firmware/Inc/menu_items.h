@@ -19,6 +19,8 @@ enum MenuID : uint16_t
     M_OUTPUT_1,
     M_OUTPUT_2,
     M_OUTPUT_3,
+    M_OUTPUT_3_RATE,
+    M_OUTPUT_3_AMP,
     M_OUTPUT_MIDI,
 };
 

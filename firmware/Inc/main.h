@@ -12,6 +12,8 @@
 #define TRIG_OUT_1 PC_15
 #define TRIG_OUT_2 PC_14
 
+#define DAC_OUT_3 PA_5
+
 #define LED_START_STOP PB_4
 #define LED_RESET PB_0
 

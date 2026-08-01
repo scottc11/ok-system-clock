@@ -29,5 +29,6 @@ extern Metronome metronome;
 extern MIDI midi;
 extern ClockOutput output1;
 extern ClockOutput output2;
+extern ClockOutput output3;
 
 void dispatch_event_isr(Event event);

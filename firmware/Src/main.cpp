@@ -38,8 +38,11 @@ DigitalOut transport_ppqn24(TRANSPORT_PPQN_24);
 DigitalOut transport_reset(TRANSPORT_RESET);
 DigitalOut transport_startStop(TRANSPORT_START_STOP, 1); // default to "running"
 
-ClockOutput output1(TRIG_OUT_1);
-ClockOutput output2(TRIG_OUT_2);
+AnalogOut dac(DAC_CHANNEL_2);
+
+ClockOutput output1(TRIG_OUT_1);            // x1: one trigger per beat
+ClockOutput output2(TRIG_OUT_2, PPQN * 2);  // /2: one trigger every two beats
+ClockOutput output3(&dac, PPQN * 4);        // /4: one trigger every four beats
 
 DigitalOut ledStartStop(LED_START_STOP);
 DigitalOut ledReset(LED_RESET);
@@ -60,6 +63,15 @@ RotaryEncoder encoder(ROTARY_ENCODER_A, ROTARY_ENCODER_B, ROTARY_ENCODER_BUTTON)
 bool encoderPressed = false;
 bool setupMode = false;
 bool queueReset = false;
+
+// Free-running PPQN pulse counter, advanced once per clock pulse and reset to 0
+// on transport reset. Must span multiple beats so divisions slower than x1
+// (e.g. /4, divisor = 4*PPQN) can leave their 50% analog gate window.
+static volatile uint32_t clockPulse = 0;
+
+// Snapshot of clockPulse taken when a METRONOME_PULSE event is dispatched, so the
+// deferred LED update reflects the pulse that actually drove the outputs.
+static volatile uint32_t clockPulseAtEvent = 0;
 
 // Bit for each polled button. A set bit means the button is pressed (active LOW).
 enum ButtonMask : uint8_t {
@@ -166,15 +178,47 @@ float calculateBPM()
     return last_bpm;
 }
 
+// write the values of IS31FL3246 to the I2C bus
+// we must write all 36 channels, even if they are not used, for auto-increment to work
+void leds_write()
+{
+    static uint8_t buffer[73];
+    buffer[0] = 0x01; // Register address
+
+    uint32_t pulseCount = clockPulseAtEvent;
+    buffer[13 * 2 + 1] = output1.isTriggered(pulseCount) ? 10 : 0;
+    buffer[13 * 2 + 2] = 0b00000100; // control register
+    buffer[14 * 2 + 1] = output3.isTriggered(pulseCount) ? 10 : 0;
+    buffer[14 * 2 + 2] = 0b00000100; // control register
+    buffer[15 * 2 + 1] = output2.isTriggered(pulseCount) ? 10 : 0;
+    buffer[15 * 2 + 2] = 0b00000100; // control register
+
+    I2CRequest req{RequestType::Transmit, &i2c, IS31FL3246_ADDR_VCC, buffer, 73, nullptr, pdFAIL};
+    i2c_submit_async(req);
+}
+
+void leds_update()
+{
+    static uint8_t buffer[2] = {IS31FL3246::Registers::UPDATE_REG, 0x00};
+    I2CRequest req{RequestType::Transmit, &i2c, IS31FL3246_ADDR_VCC, buffer, 2, nullptr, pdFAIL};
+    i2c_submit_async(req);
+}
+
 /**
  * @brief Callback for the metronome PQN pulse.
  * @note Executed in interrupt context, put all timing critical gpio operations here.
  * @param pulse 
  */
 void ppqnCallback(uint8_t pulse)
-{   
-    output1.update(pulse);
-    output2.update(pulse);
+{
+    // Drive outputs from the free-running counter (not metronome.pulse). Divisions
+    // slower than x1 have divisors > PPQN; a 0..PPQN-1 argument can never exit
+    // their analog 50% gate window, so the DAC would stick high.
+    output1.update(clockPulse);
+    output2.update(clockPulse);
+    output3.update(clockPulse);
+    clockPulseAtEvent = clockPulse;
+    clockPulse++;
     transport_ppqn24.write(1);
     
     if (pulse == 1) {
@@ -197,6 +241,15 @@ void stepCallback(uint16_t step)
 {
     transport_ppqn1.write(1);
     dispatch_event_isr(Event::METRONOME_STEP);
+}
+
+// Restart the free-running clock-output counter on transport reset so every
+// output realigns to the reset downbeat.
+void clockResetCallback(uint8_t pulse)
+{
+    UNUSED(pulse);
+    clockPulse = 0;
+    clockPulseAtEvent = 0;
 }
 
 // occurs in interrupt context
@@ -245,6 +298,7 @@ void taskMain(void *pvParameters)
     leds.init();
     display.init();
     metronome.init();
+    dac.init();
 
     can_bus.init();
     
@@ -256,9 +310,6 @@ void taskMain(void *pvParameters)
     timer8.setOverflowFrequency(30);
     timer8.start();
 
-    display.drawString("OK200");
-    display.update();
-
     STATUS_LED.write(1);
 
     encoder.attachRotateCallback(encoderRotateCallback);
@@ -267,6 +318,7 @@ void taskMain(void *pvParameters)
 
     metronome.attachPPQNCallback(ppqnCallback);
     metronome.attachStepCallback(stepCallback);
+    metronome.attachResetCallback(clockResetCallback);
     metronome.setMode(Metronome::Mode::INTERNAL);
     metronome.start();
 
@@ -282,14 +334,20 @@ void taskMain(void *pvParameters)
         {
         case Event::UPDATE_DISPLAY:
             display.update();
+            // leds_update();
             handleButtons();
             can_manager_send(OK_CAN_ID_SYSTEM_CLOCK, (uint8_t *)&can_data, 2, false);
             break;
 
         case Event::METRONOME_PULSE:
-            leds.setChannelPWM(14, output1.isTriggered(metronome.pulse) ? 10 : 0);
-            leds.setChannelPWM(16, output2.isTriggered(metronome.pulse) ? 10 : 0);
+        {
+            uint32_t pulseCount = clockPulseAtEvent;
+            leds.setChannelPWM(14, output1.isTriggered(pulseCount) ? 10 : 0);
+            leds.setChannelPWM(16, output2.isTriggered(pulseCount) ? 10 : 0);
+            leds.setChannelPWM(15, output3.isTriggered(pulseCount) ? 10 : 0);
+            // leds_write();
             break;
+        }
 
         case Event::METRONOME_STEP:
             bpm = calculateBPM();
