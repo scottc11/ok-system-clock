@@ -9,6 +9,7 @@
 #include "AnalogOut.h"
 #include "InterruptIn.h"
 #include "IS31FL3246.h"
+#include "M24256.h"
 #include "Metronome.h"
 #include "RotaryEncoder.h"
 #include "HardwareTimer.h"
@@ -51,6 +52,7 @@ DigitalIn resetButton(BTN_RESET, PinMode::PullUp);
 DigitalIn startStopButton(BTN_START_STOP, PinMode::PullUp);
 
 IS31FL3246 leds(&i2c, IS31FL3246_ADDR_VCC);
+M24256 eeprom(&i2c);
 Display display(&i2c, DISPLAY_SHUTDOWN);
 
 Metronome metronome(EXT_CLOCK_IN, TIM_CHANNEL_3);
@@ -223,15 +225,15 @@ void ppqnCallback(uint8_t pulse)
     
     if (pulse == 1) {
         transport_ppqn1.write(0);
+        transport_reset.write(0);
     }
 
+    // TODO: remove this call from the interrupt context (see uart.cpp HAL_UART_TxCpltCallback())
     midi.sendClockTick();
 
     if (queueReset) {
-        transport_reset.write(1);
+        metronome.reset();
         queueReset = false;
-    } else {
-        transport_reset.write(0);
     }
 
     dispatch_event_isr(Event::METRONOME_PULSE); // update the UI
@@ -243,14 +245,33 @@ void stepCallback(uint16_t step)
     dispatch_event_isr(Event::METRONOME_STEP);
 }
 
-// Restart the free-running clock-output counter on transport reset so every
-// output realigns to the reset downbeat.
+// ****************************************************************
+// These callbacks are called by the metronome, all hardware related operations should be done here.
+
+// NOTE: metronome.start() will call reset() and trigger this callback as well.
 void clockResetCallback(uint8_t pulse)
 {
     UNUSED(pulse);
+    // Restart the free-running clock-output counter on transport reset so every output realigns to the reset downbeat.
     clockPulse = 0;
     clockPulseAtEvent = 0;
+    transport_reset.write(1);
 }
+
+void clockStartCallback()
+{
+    transport_startStop.write(1);
+    // midi.sendClockStart();
+    ledStartStop.write(LOW);
+}
+
+void clockStopCallback()
+{
+    transport_startStop.write(0);
+    // midi.sendClockStop();
+    ledStartStop.write(HIGH);
+}
+// ****************************************************************
 
 // occurs in interrupt context
 void encoderRotateCallback(uint8_t direction)
@@ -276,10 +297,24 @@ void timerOverflowCallback()
     dispatch_event_isr(Event::UPDATE_DISPLAY);
 }
 
-void MIDIClockTickCallback()
+void midiClockTickCallback()
 {
     if (metronome.mode == Metronome::Mode::MIDI) {
         metronome.tick();
+    }
+}
+
+void midiClockStartCallback()
+{
+    if (metronome.mode == Metronome::Mode::MIDI) {
+        metronome.start();
+    }
+}
+
+void midiClockStopCallback()
+{
+    if (metronome.mode == Metronome::Mode::MIDI) {
+        metronome.stop();
     }
 }
 
@@ -297,13 +332,16 @@ void taskMain(void *pvParameters)
     i2c.init();
     leds.init();
     display.init();
+    eeprom.init();
     metronome.init();
     dac.init();
 
     can_bus.init();
     
     uart_init();
-    midi.attachClockTickCallback(callback(MIDIClockTickCallback));
+    midi.attachClockTickCallback(callback(midiClockTickCallback));
+    midi.attachClockStartCallback(callback(midiClockStartCallback));
+    midi.attachClockStopCallback(callback(midiClockStopCallback));
 
     timer8.init(8, 1000);
     timer8.attachOverflowCallback(callback(timerOverflowCallback));
@@ -319,7 +357,9 @@ void taskMain(void *pvParameters)
     metronome.attachPPQNCallback(ppqnCallback);
     metronome.attachStepCallback(stepCallback);
     metronome.attachResetCallback(clockResetCallback);
-    metronome.setMode(Metronome::Mode::INTERNAL);
+    metronome.attachStartCallback(clockStartCallback);
+    metronome.attachStopCallback(clockStopCallback);
+    metronome.setMode(static_cast<Metronome::Mode>(eeprom.readByte(EEPROM_ADDR_CLOCK_MODE)));
     metronome.start();
 
     display.drawFloat(metronome.getBPM());

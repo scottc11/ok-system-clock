@@ -35,3 +35,10 @@
 
 #define CAN_RX PB_5
 #define CAN_TX PB_6
+
+#define EEPROM_ADDR_BPM           0x00 // 4 bytes (float)
+#define EEPROM_ADDR_CLOCK_MODE    0x04 // 1 byte (uint8_t)
+#define EEPROM_ADDR_OUT_1_DIVISOR 0x05 // 2 bytes (uint16_t)
+#define EEPROM_ADDR_OUT_2_DIVISOR 0x07 // 2 bytes (uint16_t)
+#define EEPROM_ADDR_OUT_3_DIVISOR 0x09 // 2 bytes (uint16_t)
+#define EEPROM_ADDR_OUT_3_AMP     0x0B // 2 bytes (uint16_t)

@@ -8,6 +8,7 @@
 #include "Metronome.h"
 #include "ClockOutput.h"
 #include "MIDI.h"
+#include "M24256.h"
 
 enum Event
 {
@@ -23,6 +24,8 @@ enum Event
 
 extern QueueHandle_t queue_main;
 extern Display display;
+extern M24256 eeprom;
+
 extern bool encoderPressed;
 extern Menu menu;
 extern Metronome metronome;
@@ -30,5 +33,6 @@ extern MIDI midi;
 extern ClockOutput output1;
 extern ClockOutput output2;
 extern ClockOutput output3;
+
 
 void dispatch_event_isr(Event event);

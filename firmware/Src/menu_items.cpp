@@ -238,6 +238,7 @@ void applyMenuSideEffects(MenuItem &item)
             break;
         case M_METRONOME_SOURCE:
             metronome.setMode(static_cast<Metronome::Mode>(item.value));
+            eeprom.writeByte(EEPROM_ADDR_CLOCK_MODE, static_cast<uint8_t>(item.value));
             break;
         case M_OUTPUT_1:
             applyRateIndex(output1, item.value);

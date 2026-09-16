@@ -66,7 +66,9 @@ extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         // sequencer task to handle it outside of the ISR.
         if (midi.processByte(midi_rx_byte))
         {
-            dispatch_event_isr(Event::MIDI_RECEIVED);
+            // dispatch_event_isr(Event::MIDI_RECEIVED);
+            uint8_t msg[3] = {MIDI::BUFFER_IN[0], MIDI::BUFFER_IN[1], MIDI::BUFFER_IN[2]};
+            midi.parseMessage(msg);
         }
 
         // Re-arm reception of the next byte
@@ -87,7 +89,9 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1)
     {
-        // optional: kick next queued message
+        // in the future, you will want to have a ring buffer of MIDI messages to send,
+        // and then use this callback to send the next message in the buffer (once the 
+        // previous message has been sent)
     }
 }
 
