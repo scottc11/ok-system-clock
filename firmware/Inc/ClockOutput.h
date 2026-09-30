@@ -41,25 +41,21 @@ public:
     uint16_t divisor;  // number of PPQN pulses between triggers
     uint16_t amplitude; // 12-bit DAC level emitted on a trigger (ANALOG only)
     uint16_t phaseOffset; // pulses added before the divisor test; shifts triggers off the downbeat (e.g. divisor/2 = off-beat)
+    bool useForReset = false;
+    bool resetState = false;
 
     void setDivisor(uint16_t divisor);
 
-    // Sets the DAC level emitted on a trigger (clamped to DAC_MAX). ANALOG only.
     void setAmplitude(uint16_t amplitude);
 
-    // Sets the trigger phase offset in pulses (0 = on the downbeat).
     void setPhaseOffset(uint16_t offset);
 
-    // True while this output should be asserted for its divisor/phase.
-    // pulseCount is the free-running PPQN pulse index since the last transport
-    // reset. DIGITAL: true on the single trigger pulse. ANALOG: true for the
-    // first half of each divisor period after applying phaseOffset (50% gate).
     bool isTriggered(uint32_t pulseCount) const;
 
-    // Drives the output from the current free-running pulse count.
-    // DIGITAL: held HIGH for the single pulse on which the trigger fires.
-    // ANALOG:  driven to `amplitude` for half the divisor period (50% duty),
-    //          starting at the phase-offset trigger point — so ofBeat is the
-    //          inversion of x1.
     void update(uint32_t pulseCount);
+
+    void set(bool state);
+
+    void handleReset(bool state);
+    void configureAsReset(bool state);
 };

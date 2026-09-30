@@ -19,6 +19,7 @@
 #include "MIDI.h"
 #include "CAN.h"
 #include "uart.h"
+#include "usb_device.h"
 
 TaskHandle_t th_main;
 TaskHandle_t th_can_rx;
@@ -167,13 +168,7 @@ float calculateBPM()
         // If nonzero and reasonable timing, compute BPM
         if (delta > 0)
         {
-            // stepCallback is called once per step.
-            // Convert ms per step to BPM:
-            // BPM = 60000 ms / delta
             last_bpm = 60000.0f / (float)delta;
-            // Optionally, do something with last_bpm, e.g., display.updateBPM(last_bpm);
-            // For demonstration, you might display it:
-            // display.drawFloat(last_bpm);
         }
     }
     last_call_time = current_time;
@@ -226,6 +221,9 @@ void ppqnCallback(uint8_t pulse)
     if (pulse == 1) {
         transport_ppqn1.write(0);
         transport_reset.write(0);
+        output1.handleReset(LOW);
+        output2.handleReset(LOW);
+        output3.handleReset(LOW);
     }
 
     // TODO: remove this call from the interrupt context (see uart.cpp HAL_UART_TxCpltCallback())
@@ -256,6 +254,9 @@ void clockResetCallback(uint8_t pulse)
     clockPulse = 0;
     clockPulseAtEvent = 0;
     transport_reset.write(1);
+    output1.handleReset(HIGH);
+    output2.handleReset(HIGH);
+    output3.handleReset(HIGH);
 }
 
 void clockStartCallback()
@@ -468,6 +469,10 @@ void task_can_rx(void *pv)
 
 int main(void)
 {
+    // Does not return if the last reset came from a USB DFU detach request.
+    // Must stay ahead of HAL_Init() and any peripheral setup.
+    // usb_device_check_bootloader_entry();
+
     HAL_Init();
 
     SystemClock_Config();
@@ -486,6 +491,8 @@ int main(void)
     HAL_Delay(90);
 
     ok_random_seed(HAL_GetTick());
+
+    // usb_device_init();
 
     xTaskCreate(taskMain, "taskMain", 512, NULL, configMAX_PRIORITIES - 1, &th_main);
 

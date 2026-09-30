@@ -24,10 +24,21 @@ static uint8_t compileTimeLength(T (&)[N])
     return static_cast<uint8_t>(N);
 }
 
+
+
+
+
+// Index into the rate table that maps to the default divisor ("x1").
+static constexpr uint16_t DIVISOR_DEFAULT_INDEX = 12;
+
+
+
 static MenuItem makeBackItem()
 {
     return {M_BACK, "< Back", nullptr, 0, 0, false, true, 0, 100, 1, nullptr, 0};
 }
+
+const char *const true_false_labels[] = { "FALSE", "TRUE" };
 
 // Clock-output rate table, expressed as multipliers ("xN": N triggers per beat)
 // and divisions ("/N": one trigger every N beats). The ".3"/".6" suffixes denote
@@ -38,9 +49,20 @@ static MenuItem makeBackItem()
 // in lockstep (index i in one maps to index i in the others).
 const char *const rateLabels[] = {
     "/16", "/12", "/8", "/6", "/4", "/3", "/2.6", "/2.3", "/2", "/1.6", "/1.3",
-    "ofBeat",
+    "accent",
     "x1", "x1.3", "x1.5", "x2", "x2.6", "x3", "x4", "x6", "x8", "x12", "x16",
 };
+
+static MenuItem makeRateItem(uint16_t id)
+{
+    return {id, "RATE", nullptr, 0, DIVISOR_DEFAULT_INDEX, false, false, 0, static_cast<uint16_t>(compileTimeLength(rateLabels) - 1), 1, rateLabels, compileTimeLength(rateLabels)};
+}
+
+// defaults to false
+static MenuItem makeOutputResetItem(uint16_t id)
+{
+    return {id, "RESET", nullptr, 0, 1, false, false, 0, static_cast<uint16_t>(compileTimeLength(true_false_labels) - 1), 1, true_false_labels, compileTimeLength(true_false_labels)};
+}
 
 // Divisor (PPQN pulses between triggers) for each rateLabels entry.
 //   division "/N" -> PPQN * N ;  multiplier "xN" -> PPQN / N (N in thirds where noted)
@@ -78,9 +100,6 @@ const uint16_t ratePhaseOffsets[] = {
     0,          // x1
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
-
-// Index into the rate table that maps to the default divisor ("x1").
-static constexpr uint16_t DIVISOR_DEFAULT_INDEX = 12;
 
 // Maps a rate table index onto the matching divisor (PPQN pulses between triggers).
 static uint16_t divisorForIndex(uint16_t index)
@@ -179,18 +198,29 @@ MenuItem inputsOptions[] = {
     {M_INPUT_MIDI, "MIDI", nullptr, 0, 0, false, false, 0, 100, 1, nullptr, 0},
 };
 
-// OUT 3 drives the DAC, so it gets its own submenu with a trigger RATE (division)
-// and an output AMP (amplitude) rather than being a single division picker.
-MenuItem output3Options[] = {
-    {M_OUTPUT_3_RATE, "RATE", nullptr, 0, DIVISOR_DEFAULT_INDEX, false, false, 0, compileTimeLength(rateLabels) - 1, 1, rateLabels, compileTimeLength(rateLabels)},
-    {M_OUTPUT_3_AMP, "AMP", nullptr, 0, static_cast<uint16_t>(compileTimeLength(ampVoltLabels) - 1), false, false, 0, compileTimeLength(ampVoltLabels) - 1, 1, ampVoltLabels, compileTimeLength(ampVoltLabels)},
+MenuItem output_1_options[] = {
+    makeRateItem(M_OUTPUT_1_RATE),
+    makeOutputResetItem(M_OUTPUT_1_RESET),
+    makeBackItem(),
+};
+
+MenuItem output_2_options[] = {
+    makeRateItem(M_OUTPUT_2_RATE),
+    makeOutputResetItem(M_OUTPUT_2_RESET),
+    makeBackItem(),
+};
+
+MenuItem output_3_options[] = {
+    makeRateItem(M_OUTPUT_3_RATE),
+    makeOutputResetItem(M_OUTPUT_3_RESET),
+    {M_OUTPUT_3_AMP, "AMP", nullptr, 0, static_cast<uint16_t>(compileTimeLength(ampVoltLabels) - 1), false, false, 0, static_cast<uint16_t>(compileTimeLength(ampVoltLabels) - 1), 1, ampVoltLabels, compileTimeLength(ampVoltLabels)},
     makeBackItem(),
 };
 
 MenuItem outputsOptions[] = {
-    {M_OUTPUT_1, "OUT 1", nullptr, 0, DIVISOR_DEFAULT_INDEX, false, false, 0, compileTimeLength(rateLabels) - 1, 1, rateLabels, compileTimeLength(rateLabels)},
-    {M_OUTPUT_2, "OUT 2", nullptr, 0, DIVISOR_DEFAULT_INDEX, false, false, 0, compileTimeLength(rateLabels) - 1, 1, rateLabels, compileTimeLength(rateLabels)},
-    {M_OUTPUT_3, "OUT 3", output3Options, compileTimeLength(output3Options), 0, true, false, 0, 100, 1, nullptr, 0},
+    {M_OUTPUT_1, "OUT 1", output_1_options, compileTimeLength(output_1_options), 0, true, false, 0, 100, 1, nullptr, 0},
+    {M_OUTPUT_2, "OUT 2", output_2_options, compileTimeLength(output_2_options), 0, true, false, 0, 100, 1, nullptr, 0},
+    {M_OUTPUT_3, "OUT 3", output_3_options, compileTimeLength(output_3_options), 0, true, false, 0, 100, 1, nullptr, 0},
     makeBackItem(),
 };
 
@@ -240,14 +270,23 @@ void applyMenuSideEffects(MenuItem &item)
             metronome.setMode(static_cast<Metronome::Mode>(item.value));
             eeprom.writeByte(EEPROM_ADDR_CLOCK_MODE, static_cast<uint8_t>(item.value));
             break;
-        case M_OUTPUT_1:
+        case M_OUTPUT_1_RATE:
             applyRateIndex(output1, item.value);
             break;
-        case M_OUTPUT_2:
+        case M_OUTPUT_1_RESET:
+            output1.configureAsReset(item.value);
+            break;
+        case M_OUTPUT_2_RATE:
             applyRateIndex(output2, item.value);
+            break;
+        case M_OUTPUT_2_RESET:
+            output2.configureAsReset(item.value);
             break;
         case M_OUTPUT_3_RATE:
             applyRateIndex(output3, item.value);
+            break;
+        case M_OUTPUT_3_RESET:
+            output3.configureAsReset(item.value);
             break;
         case M_OUTPUT_3_AMP:
             output3.setAmplitude(dacFromVoltIndex(item.value));
@@ -282,14 +321,23 @@ void syncMenuValuesRecursive(MenuItem &menuNode)
         case M_METRONOME_SOURCE:
             item.value = static_cast<uint16_t>(metronome.mode);
             break;
-        case M_OUTPUT_1:
+        case M_OUTPUT_1_RATE:
             item.value = indexForRate(output1.divisor, output1.phaseOffset);
             break;
-        case M_OUTPUT_2:
+        case M_OUTPUT_1_RESET:
+            item.value = output1.useForReset ? 1 : 0;
+            break;
+        case M_OUTPUT_2_RATE:
             item.value = indexForRate(output2.divisor, output2.phaseOffset);
+            break;
+        case M_OUTPUT_2_RESET:
+            item.value = output2.useForReset ? 1 : 0;
             break;
         case M_OUTPUT_3_RATE:
             item.value = indexForRate(output3.divisor, output3.phaseOffset);
+            break;
+        case M_OUTPUT_3_RESET:
+            item.value = output3.useForReset ? 1 : 0;
             break;
         case M_OUTPUT_3_AMP:
             item.value = voltIndexFromDac(output3.amplitude);
