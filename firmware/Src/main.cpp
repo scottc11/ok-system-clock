@@ -379,10 +379,15 @@ void taskMain(void *pvParameters)
     eeprom.init();
     metronome.init();
     dac.init();
-
     can_bus.init();
-    
     uart_init();
+
+    // ------------------------------------------------------------
+    // DISPLAY START-UP SEQUENCE
+    // Runs after peripheral init and before application callbacks or timers.
+    display.playStartupSequence();
+    // ------------------------------------------------------------
+
     midi.attachClockTickCallback(callback(midiClockTickCallback));
     midi.attachClockStartCallback(callback(midiClockStartCallback));
     midi.attachClockStopCallback(callback(midiClockStopCallback));

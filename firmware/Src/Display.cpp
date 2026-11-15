@@ -41,6 +41,67 @@ void Display::clear()
     }
 }
 
+/**
+ * @brief Sweep a column wave across the display from left to right.
+ *
+ * The wave starts as a single column, grows to WAVE_WIDTH columns, then
+ * shrinks again. The second-to-last step leaves only the rightmost column
+ * lit, and the last step turns the display off. The sweep is spread across
+ * SYSTEM_STARTUP_TIME_MS. Column writes go out on the blocking I2C path so
+ * the sequence finishes before application timers and callbacks are attached.
+ */
+void Display::playStartupSequence()
+{
+    // 5x11 mode uses the low five bits, one per row.
+    constexpr uint8_t COLUMN_ON = 0x1F;
+    constexpr uint8_t WAVE_WIDTH = 3;
+    // One step per column as the wave enters, plus WAVE_WIDTH steps to leave
+    // (width 2, width 1, then dark).
+    constexpr uint8_t STEP_COUNT = DISPLAY_COLUMNS + WAVE_WIDTH;
+
+    clear();
+
+    const uint32_t start_ms = HAL_GetTick();
+
+    for (uint8_t step = 0; step < STEP_COUNT; ++step)
+    {
+        const uint32_t at_ms = (SYSTEM_STARTUP_TIME_MS * step) / STEP_COUNT;
+        const uint32_t elapsed_ms = HAL_GetTick() - start_ms;
+        if (at_ms > elapsed_ms)
+        {
+            vTaskDelay(pdMS_TO_TICKS(at_ms - elapsed_ms));
+        }
+
+        for (uint8_t column = 0; column < DISPLAY_COLUMNS; ++column)
+        {
+            // A column stays lit for WAVE_WIDTH steps after the wave reaches it,
+            // so the lit run grows from 1 to WAVE_WIDTH and shrinks back to 1.
+            const bool on = (column <= step)
+                && (step < static_cast<uint8_t>(column + WAVE_WIDTH));
+            const uint8_t value = on ? COLUMN_ON : 0x00;
+
+            // Even columns are on matrix 1, odd columns on matrix 2.
+            const uint8_t matrix = static_cast<uint8_t>(column & 1u);
+            const uint8_t col_reg = static_cast<uint8_t>(column >> 1);
+            if (matrix_buffer[matrix][col_reg] == value)
+            {
+                continue;
+            }
+
+            matrix_buffer[matrix][col_reg] = value;
+            driver.setMatrixDataRegister(matrix, col_reg, value);
+        }
+
+        driver.updateMatrix();
+    }
+
+    const uint32_t elapsed_ms = HAL_GetTick() - start_ms;
+    if (SYSTEM_STARTUP_TIME_MS > elapsed_ms)
+    {
+        vTaskDelay(pdMS_TO_TICKS(SYSTEM_STARTUP_TIME_MS - elapsed_ms));
+    }
+}
+
 void Display::startAnimation(const Animation *animation)
 {
     animator.animation = animation;

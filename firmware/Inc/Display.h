@@ -50,6 +50,10 @@ class Display
 
         void clear();
 
+        // Sweep a wave of at most 3 columns from left to right over SYSTEM_STARTUP_TIME_MS.
+        // Blocks. The display is blank when the sequence returns.
+        void playStartupSequence();
+
         void startAnimation(const Animation *animation);
         void stopAnimation();
         void updateAnimation(uint16_t dt_ms);
