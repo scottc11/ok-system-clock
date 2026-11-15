@@ -21,6 +21,7 @@
 #include "CAN.h"
 #include "uart.h"
 #include "usb_device.h"
+#include "tusb.h"
 #include <cstdio>
 
 TaskHandle_t th_main;
@@ -474,11 +475,18 @@ void task_can_rx(void *pv)
 
                     uint8_t channel = midi_bytes[0] & 0x0F;
 
+                    // Each handler forwards its message to the USB host with tud_midi_stream_write(),
+                    // which wraps the raw MIDI bytes in a USB-MIDI event packet on virtual cable 0.
+                    // It never blocks: the message is dropped if the host has not configured the MIDI
+                    // interface or is not reading it, so a missing host cannot stall this task.
                     switch (midi_bytes[0] & 0xF0) {
                     case NOTE_ON:
                     {
                         uint8_t note = midi_bytes[1];
                         uint8_t velocity = midi_bytes[2];
+                        // Sent before the velocity check: a velocity 0 note-on is a note-off, and
+                        // the host needs it to release the note.
+                        tud_midi_stream_write(0, midi_bytes, msg.len);
                         if (velocity == 0) {
                             UNUSED(channel);
                             UNUSED(note);
@@ -486,9 +494,9 @@ void task_can_rx(void *pv)
                         }
                         UNUSED(note);
                         UNUSED(velocity);
-                        char text[8];
-                        std::snprintf(text, sizeof(text), "ON: %u", static_cast<unsigned>(channel));
-                        display.drawString(text);
+                        // char text[8];
+                        // std::snprintf(text, sizeof(text), "ON: %u", static_cast<unsigned>(channel));
+                        // display.drawString(text);
                         break;
                     }
 
@@ -499,9 +507,10 @@ void task_can_rx(void *pv)
                         UNUSED(channel);
                         UNUSED(note);
                         UNUSED(velocity);
-                        char text[8];
-                        std::snprintf(text, sizeof(text), "OFF: %u", static_cast<unsigned>(channel));
-                        display.drawString(text);
+                        tud_midi_stream_write(0, midi_bytes, msg.len);
+                        // char text[8];
+                        // std::snprintf(text, sizeof(text), "OFF: %u", static_cast<unsigned>(channel));
+                        // display.drawString(text);
                         break;
                     }
 
@@ -510,9 +519,10 @@ void task_can_rx(void *pv)
                         uint16_t pitch = (static_cast<uint16_t>(midi_bytes[2]) << 7) | midi_bytes[1];
                         UNUSED(channel);
                         UNUSED(pitch);
-                        char text[8];
-                        std::snprintf(text, sizeof(text), "PB: %u", static_cast<unsigned>(pitch));
-                        display.drawString(text);
+                        tud_midi_stream_write(0, midi_bytes, msg.len);
+                        // char text[8];
+                        // std::snprintf(text, sizeof(text), "PB: %u", static_cast<unsigned>(pitch));
+                        // display.drawString(text);
                         break;
                     }
 
@@ -553,7 +563,7 @@ int main(void)
 
     ok_random_seed(HAL_GetTick());
 
-    // usb_device_init();
+    usb_device_init();
 
     xTaskCreate(taskMain, "taskMain", 512, NULL, configMAX_PRIORITIES - 1, &th_main);
 
