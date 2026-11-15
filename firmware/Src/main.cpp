@@ -17,9 +17,11 @@
 #include "menu_items.h"
 #include "ClockOutput.h"
 #include "MIDI.h"
+#include "MidiCan.h"
 #include "CAN.h"
 #include "uart.h"
 #include "usb_device.h"
+#include <cstdio>
 
 TaskHandle_t th_main;
 TaskHandle_t th_can_rx;
@@ -377,7 +379,6 @@ void taskMain(void *pvParameters)
             display.update();
             // leds_update();
             handleButtons();
-            can_manager_send(OK_CAN_ID_SYSTEM_CLOCK, (uint8_t *)&can_data, 2, false);
             break;
 
         case Event::METRONOME_PULSE:
@@ -463,6 +464,66 @@ void task_can_rx(void *pv)
         {
             // React to the frame here. Runs independently of the clock task.
             // e.g. forward to USB, update the metronome, etc.
+            switch (msg.id) {
+                case OK_CAN_ID_COUNTERPOINT:
+                {
+                    uint8_t midi_bytes[3];
+                    if (!midi_can_decode(msg, midi_bytes)) {
+                        break;
+                    }
+
+                    uint8_t channel = midi_bytes[0] & 0x0F;
+
+                    switch (midi_bytes[0] & 0xF0) {
+                    case NOTE_ON:
+                    {
+                        uint8_t note = midi_bytes[1];
+                        uint8_t velocity = midi_bytes[2];
+                        if (velocity == 0) {
+                            UNUSED(channel);
+                            UNUSED(note);
+                            break;
+                        }
+                        UNUSED(note);
+                        UNUSED(velocity);
+                        char text[8];
+                        std::snprintf(text, sizeof(text), "ON: %u", static_cast<unsigned>(channel));
+                        display.drawString(text);
+                        break;
+                    }
+
+                    case NOTE_OFF:
+                    {
+                        uint8_t note = midi_bytes[1];
+                        uint8_t velocity = midi_bytes[2];
+                        UNUSED(channel);
+                        UNUSED(note);
+                        UNUSED(velocity);
+                        char text[8];
+                        std::snprintf(text, sizeof(text), "OFF: %u", static_cast<unsigned>(channel));
+                        display.drawString(text);
+                        break;
+                    }
+
+                    case PITCH_BEND:
+                    {
+                        uint16_t pitch = (static_cast<uint16_t>(midi_bytes[2]) << 7) | midi_bytes[1];
+                        UNUSED(channel);
+                        UNUSED(pitch);
+                        char text[8];
+                        std::snprintf(text, sizeof(text), "PB: %u", static_cast<unsigned>(pitch));
+                        display.drawString(text);
+                        break;
+                    }
+
+                    default:
+                        break;
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
         }
     }
 }
