@@ -322,6 +322,46 @@ void midiClockStopCallback()
     }
 }
 
+// TinyUSB calls this from the usbd task when a USB-MIDI packet arrives.
+// Realtime clock bytes are single-byte packets (CIN 0xF): 0xF8 tick, 0xFA start,
+// 0xFB continue, 0xFC stop. One tick is one PPQN pulse, same as the serial MIDI input.
+extern "C" void tud_midi_rx_cb(uint8_t itf)
+{
+    (void)itf;
+
+    uint8_t packet[4];
+    while (tud_midi_packet_read(packet)) {
+        if ((packet[0] & 0x0F) != MIDI_CIN_1BYTE_DATA) {
+            continue;
+        }
+        if (metronome.mode != Metronome::Mode::USB) {
+            continue;
+        }
+
+        switch (packet[1]) {
+        case MIDIstatus::CLOCK_TICK:
+            metronome.tick();
+            break;
+        case MIDIstatus::CLOCK_START:
+            metronome.start();
+            break;
+        case MIDIstatus::CLOCK_CONTINUE:
+            // Resume in place. start() would reset the pulse back to the downbeat.
+            metronome.running = true;
+            metronome.setMode(metronome.mode);
+            if (metronome.startCallback) {
+                metronome.startCallback();
+            }
+            break;
+        case MIDIstatus::CLOCK_STOP:
+            metronome.stop();
+            break;
+        default:
+            break;
+        }
+    }
+}
+
 /**
  * @brief The main task that handles all clock related timing events and user interaction.
  * 
@@ -394,7 +434,7 @@ void taskMain(void *pvParameters)
 
         case Event::METRONOME_STEP:
             bpm = calculateBPM();
-            if (metronome.mode == Metronome::Mode::EXTERNAL || metronome.mode == Metronome::Mode::MIDI) {
+            if (metronome.mode == Metronome::Mode::EXTERNAL || metronome.mode == Metronome::Mode::MIDI || metronome.mode == Metronome::Mode::USB) {
                 metronome.setBPM(bpm);
                 if (!setupMode) {
                     display.drawFloat(bpm);

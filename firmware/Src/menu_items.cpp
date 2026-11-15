@@ -188,7 +188,9 @@ static uint16_t voltIndexFromDac(uint16_t dacValue)
     return index > maxIndex ? maxIndex : index;
 }
 
-const char *const metronomeSourceLabels[] = {"EXT.", "INT.", "MIDI", "LINK"};
+// Kept in the same order as Metronome::Mode so a label index is the mode value
+// stored in EEPROM. USB follows LINK, which leaves saved values 0..3 unchanged.
+const char *const metronomeSourceLabels[] = {"EXT.", "INT.", "MIDI", "LINK", "USB"};
 
 MenuItem inputsOptions[] = {
     makeBackItem(),
