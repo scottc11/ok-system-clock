@@ -511,6 +511,19 @@ void task_can_rx(void *pv)
             // React to the frame here. Runs independently of the clock task.
             // e.g. forward to USB, update the metronome, etc.
             switch (msg.id) {
+                case OK_CAN_ID_LOGGER:
+                {
+                    if (msg.len < 4) {
+                        break;
+                    }
+                    // Little-endian int32: data[0] is the least significant byte.
+                    uint32_t bits = static_cast<uint32_t>(msg.data[0])
+                        | (static_cast<uint32_t>(msg.data[1]) << 8)
+                        | (static_cast<uint32_t>(msg.data[2]) << 16)
+                        | (static_cast<uint32_t>(msg.data[3]) << 24);
+                    display.drawInteger(static_cast<int32_t>(bits));
+                    break;
+                }
                 case OK_CAN_ID_COUNTERPOINT:
                 {
                     uint8_t midi_bytes[3];
